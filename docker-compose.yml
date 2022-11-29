@@ -1,0 +1,28 @@
+version: "3.4"
+
+volumes:
+  caa-cache:
+
+networks:
+  production:
+    external: true
+  musicbrainz-docker_default:
+    external: true
+
+services:
+
+  caa-grid:
+    build: .
+    volumes:
+      - caa-cache:/cache:z
+    restart: unless-stopped 
+    command: python cache.py
+    expose:
+      - 8000
+    environment:
+      - LETSENCRYPT_HOST=grid.listenbrainz.org
+      - LETSENCRYPT_EMAIL=rob@metabrainz.org
+      - VIRTUAL_HOST=grid.listenbrainz.org
+    networks:
+      - musicbrainz-docker_default
+      - production
