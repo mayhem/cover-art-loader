@@ -11,60 +11,60 @@ from cache import CoverArtLoader
 
 class CoverArtMosaic:
 
-    def __init__(self, cache_dir, num_tiles, tile_size):
+    def __init__(self, cache_dir, pattern_file, tile_size):
         self.cache_dir = cache_dir
-        self.num_tiles = num_tiles
         self.tile_size = tile_size
+        self.pattern_file = pattern_file
+
+        self.pattern_image = Image(filename=pattern_file)
+        self.image_size_x = tile_size * self.pattern_image.width 
+        self.image_size_y = tile_size * self.pattern_image.height 
+        print("pattern image: %d x %d" % (self.pattern_image.width, self.pattern_image.height))
 
 
-    def get_tile_position(self, tile):
-        """ Calculate the position of a given tile, return (x, y) """
+    def create(self, output_file):
 
-        return (int(tile % self.num_tiles * self.tile_size), int(tile // self.num_tiles * self.tile_size))
+        used = {}
 
+        cal = CoverArtLoader("cache")
+        composite = Image(height=self.image_size_y, width=self.image_size_x, background="#000000")
+        index = 0
+        for y in range(self.pattern_image.height):
+            for x in range(self.pattern_image.width):
+                color = self.pattern_image[y][x]
 
-    def create(self):
-
-        composite = Image(height=self.image_size, width=self.image_size, background="#000000")
-        for x1, y1, x2, y2 in tiles:
-            i += 1
-            while True:
-                try:
-                    mbid = mbids.pop(0)
-                except IndexError:
-                    cover_art = self.load_or_create_missing_cover_art_tile()
-
-                cover_art, err = self.fetch(mbid)
-                if cover_art is None:
-                    print(f"Could not fetch cover art for {mbid}: {err}")
-                    if self.skip_missing:
-                        print("Skip nmissing and try again")
+                picked = None
+                releases = cal.lookup(int(255 * color.red), int(255 * color.green), int(255 * color.blue))
+                for release in releases:
+                    if release["release_mbid"] in used:
                         continue
+                    picked = release
 
-                    cover_art = self.load_or_create_missing_cover_art_tile()
-                break
+                if picked is None:
+                    picked = releases[0]
+                    print("Ran out of options!")
 
-            # Check to see if we have a string with a filename or loaded/prepped image (for missing images)
-            if isinstance(cover_art, str):
-                cover = Image(filename=cover_art)
-                cover.resize(x2 - x1, y2 - y1)
-            else:
-                cover = cover_art
+                used[picked["release_mbid"]] = 1
 
-            composite.composite(left=x1, top=y1, image=cover)
+                print(f"{x} {y} ({color.red}, {color.green}, {color.blue}) {picked['release_mbid']}")
+                path = cal._cache_path(picked["release_mbid"])
 
-        obj = io.BytesIO()
-        composite.format = 'jpeg'
-        composite.save(file=obj)
-        obj.seek(0, 0)
+                cover = Image(filename=path)
+                cover.resize(self.tile_size, self.tile_size)
 
-        return obj
+                composite.composite(left=self.tile_size * x, top=self.tile_size * y, image=cover)
+
+                index += 1
+
+        composite.save(filename=output_file)
+
 
 
 if __name__ == '__main__':
+#    TODO: actually analyze these images!
     cal = CoverArtLoader("cache")
-    release_data = cal.fetch_all()
-    release_colors = cal.fetch_release_colors(release_data)
-    cal.create_subset_table(release_colors)
+#    release_data = cal.fetch_all()
+#    cal.create_subset_table(release_data)
 
-    mos = CoverArtMosaic("cache", 5, 25)
+    mos = CoverArtMosaic("cache", "rainbow.png", 100)
+    mos.create("test.jpg")

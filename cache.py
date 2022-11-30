@@ -9,7 +9,6 @@ from uuid import UUID
 import psycopg2
 import psycopg2.extras
 import psycopg2.errors
-from psycopg2.extras import execute_values
 import requests
 
 import config
@@ -167,7 +166,7 @@ class CoverArtLoader:
 
         return releases
 
-    def fetch_release_colors(self, release_caa_ids):
+    def create_subset_table(self, release_caa_ids):
 
         release_colors = []
         release_mbids = [ r[0] for r in release_caa_ids ]
@@ -177,49 +176,32 @@ class CoverArtLoader:
                         , green
                         , blue
                         , color
+                     INTO mapping.release_colors_yim_subset
                      FROM release_color
                     WHERE release_mbid in %s"""
         with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
-                curs.execute(query, (tuple(release_mbids),))
-                for row in curs:
-                    release_colors.append((row["caa_id"],
-                                           row["release_mbid"],
-                                           row["red"],
-                                           row["green"],
-                                           row["blue"],
-                                           row["color"]))
-
-        return release_colors
-
-
-    def create_subset_table(self, release_colors):
-
-        query = """INSERT INTO mapping.release_colors_yim_subset (caa_id,
-                                                                  release_mbid,
-                                                                  red,
-                                                                  green,
-                                                                  blue,
-                                                                  color) VALUES (%s)"""
-        print(release_colors[0])
-        with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
                 try:
-                    curs.execute("TRUNCATE mapping.release_colors_yim_subset")
+                    curs.execute("DROP TABLE mapping.release_colors_yim_subset")
                 except psycopg2.errors.UndefinedTable:
                     conn.rollback()
-                    curs.execute("""CREATE TABLE mapping.release_colors_yim_subset (
-                                        caa_id                  BIGINT NOT NULL,
-                                        release_mbid            TEXT NOT NULL,
-                                        red                     SMALLINT NOT NULL,
-                                        green                   SMALLINT NOT NULL,   
-                                        blue                    SMALLINT NOT NULL,
-                                        color                   CUBE
-                                    )""")
-                    conn.commit()
 
-                execute_values(curs, query, release_colors)
-                conn.commit()
+                curs.execute(query, (tuple(release_mbids),))
+
+    def lookup(self, red, green, blue):
+
+        releases = []
+        query = f"""SELECT *
+                      FROM mapping.release_colors_yim_subset
+                  ORDER BY color <-> '{red}, {green}, {blue}'::CUBE
+                      LIMIT 200"""
+        with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
+                curs.execute(query)
+                for row in curs:
+                    releases.append(dict(row))
+
+        return releases
 
 
 if __name__ == '__main__':
