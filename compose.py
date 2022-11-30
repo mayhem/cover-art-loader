@@ -64,6 +64,7 @@ class CoverArtMosaic:
 if __name__ == '__main__':
     cal = CoverArtLoader("cache")
     release_data = cal.fetch_all()
-    cal.create_subset_table(release_data)
+    release_colors = cal.fetch_release_colors(release_data)
+    cal.create_subset_table(release_colors)
 
     mos = CoverArtMosaic("cache", 5, 25)

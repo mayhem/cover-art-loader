@@ -9,6 +9,7 @@ from uuid import UUID
 import psycopg2
 import psycopg2.extras
 import psycopg2.errors
+from psycopg2.extras import execute_values
 import requests
 
 import config
@@ -110,7 +111,6 @@ class CoverArtLoader:
         releases = []
         query = """WITH releases_year AS (
                    SELECT rl.gid AS release_mbid
-                        , rl.id AS release_id
                         , rl.release_group AS release_group_id
                         , caa.id AS caa_id
                      FROM release rl
@@ -124,7 +124,6 @@ class CoverArtLoader:
                       AND rc.date_year = 2022
                UNION
                    SELECT rl.gid AS release_mbid
-                        , rl.id AS release_id
                         , rl.release_group AS release_group_id
                         , caa.id AS caa_id
                      FROM release rl
@@ -139,7 +138,6 @@ class CoverArtLoader:
          ), distinct_releases_year AS (
                    SELECT DISTINCT ry.release_mbid
                         , ry.release_group_id
-                        , ry.release_id
                         , ry.caa_id
                         , row_number() over (partition by ry.release_mbid,
                                                           ry.release_group_id
@@ -147,16 +145,13 @@ class CoverArtLoader:
                                                 ry.release_group_id) AS rnum
                      FROM releases_year ry
                  GROUP BY ry.release_mbid
-                        , ry.release_id
                         , ry.release_group_id
                         , ry.caa_id
           )
                    SELECT release_mbid
-                        , release_id
                         , caa_id   
                      FROM distinct_releases_year dry
                  GROUP BY dry.release_mbid
-                        , dry.release_id
                         , dry.release_group_id
                         , dry.caa_id
                         , dry.rnum
@@ -166,25 +161,64 @@ class CoverArtLoader:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
                 curs.execute(query)
                 for row in curs:
-                    releases.append((row["release_mbid"], row["caa_id"], row["release_id"]))
+                    releases.append((row["release_mbid"], row["caa_id"]))
+
+        print("%d releases" % len(releases))
 
         return releases
 
-    def create_subset_table(self, release_caa_ids):
+    def fetch_release_colors(self, release_caa_ids):
 
-        release_ids = [ r[2] for r in release_caa_ids ]
-        query = """SELECT *
-                     INTO cover_art_archive.yim_subset
-                     FROM cover_art_archive.cover_art
-                    WHERE release in %s"""
+        release_colors = []
+        release_mbids = [ r[0] for r in release_caa_ids ]
+        query = """SELECT caa_id 
+                        , release_mbid
+                        , red
+                        , green
+                        , blue
+                        , color
+                     FROM release_color
+                    WHERE release_mbid in %s"""
+        with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
+                curs.execute(query, (tuple(release_mbids),))
+                for row in curs:
+                    release_colors.append((row["caa_id"],
+                                           row["release_mbid"],
+                                           row["red"],
+                                           row["green"],
+                                           row["blue"],
+                                           row["color"]))
+
+        return release_colors
+
+
+    def create_subset_table(self, release_colors):
+
+        query = """INSERT INTO mapping.release_colors_yim_subset (caa_id,
+                                                                  release_mbid,
+                                                                  red,
+                                                                  green,
+                                                                  blue,
+                                                                  color) VALUES (%s)"""
+        print(release_colors[0])
         with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
                 try:
-                    curs.execute("TRUNCATE cover_art_archive.yim_subset")
+                    curs.execute("TRUNCATE mapping.release_colors_yim_subset")
                 except psycopg2.errors.UndefinedTable:
                     conn.rollback()
+                    curs.execute("""CREATE TABLE mapping.release_colors_yim_subset (
+                                        caa_id                  BIGINT NOT NULL,
+                                        release_mbid            TEXT NOT NULL,
+                                        red                     SMALLINT NOT NULL,
+                                        green                   SMALLINT NOT NULL,   
+                                        blue                    SMALLINT NOT NULL,
+                                        color                   CUBE
+                                    )""")
+                    conn.commit()
 
-                curs.execute(query, (tuple(release_ids),))
+                execute_values(curs, query, release_colors)
                 conn.commit()
 
 
