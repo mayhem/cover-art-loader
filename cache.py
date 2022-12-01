@@ -7,11 +7,16 @@ from time import sleep
 from uuid import UUID
 
 import psycopg2
-import psycopg2.extras
+from psycopg2.extras import execute_values
 import psycopg2.errors
 import requests
+from wand.image import Image
+import concurrent.futures
 
 import config
+
+def get_predominant_color_helper(obj, release_mbid):
+    return obj.get_predominant_color(release_mbid)
 
 
 class CoverArtLoader:
@@ -20,7 +25,7 @@ class CoverArtLoader:
         self.cache_dir = cache_dir
 
 
-    def _cache_path(self, release_mbid):
+    def cache_path(self, release_mbid):
         """ Given a release_mbid, create the file system path to where the cover art should be saved and 
             ensure that the directory for it exists. """
 
@@ -91,7 +96,7 @@ class CoverArtLoader:
 
         print("%s %d" % (release_mbid, caa_id), end="")
         sys.stdout.flush()
-        cover_art_file = self._cache_path(release_mbid)
+        cover_art_file = self.cache_path(release_mbid)
         if not os.path.exists(cover_art_file):
             err = self._download_cover_art(release_mbid, caa_id, cover_art_file)
             if err is not None:
@@ -166,6 +171,50 @@ class CoverArtLoader:
 
         return releases
 
+    def get_predominant_color(self, release_mbid):
+        path = self.cache_path(release_mbid)
+        if not os.path.exists(path):
+            return None
+
+        image = Image(filename=path)
+        image.resize(1, 1)
+        return (int(255 * image[0][0].red), int(255 * image[0][0].green), int(255 * image[0][0].blue))
+
+    def calculate_colors(self):
+
+        release_colors = {}
+        releases = self.fetch_all()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
+            print("Submit jobs")
+            futures = {executor.submit(get_predominant_color_helper, self, release[0]) :
+                       release
+                       for release in releases}
+            for future in concurrent.futures.as_completed(futures):
+                release = futures[future]
+                try:
+                    color = future.result()
+                    if color is not None:
+                        release_colors[release] = color
+                except Exception as exc:
+                    print('%s generated an exception: %s' % (release_mbid, exc))
+
+        with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
+                try:
+                    curs.execute("TRUNCATE mapping.release_colors_yim_subset")
+                    conn.commit()
+                except psycopg2.errors.UndefinedTable:
+                    conn.rollback()
+
+                values = []
+                for release in release_colors:
+                    color = release_colors[release]
+                    values.append((release[1], release[0], color[0], color[1], color[2], "(%d,%d,%d)" % (color[0], color[1], color[2])))
+                execute_values(curs, """INSERT INTO mapping.release_colors_yim_subset 
+                                         (caa_id, release_mbid, red, green, blue, color) VALUES %s""", values)
+                conn.commit()
+
+
     def create_subset_table(self, release_caa_ids):
 
         release_colors = []
@@ -188,13 +237,15 @@ class CoverArtLoader:
 
                 curs.execute(query, (tuple(release_mbids),))
 
-    def lookup(self, red, green, blue):
+    def lookup(self, threshold, limit, red, green, blue):
 
         releases = []
         query = f"""SELECT *
+                         , color <-> '{red}, {green}, {blue}' AS score
                       FROM mapping.release_colors_yim_subset
-                  ORDER BY color <-> '{red}, {green}, {blue}'::CUBE
-                      LIMIT 200"""
+                     WHERE color <-> '{red}, {green}, {blue}'::CUBE < {threshold}
+                  ORDER BY color <-> '{red}, {green}, {blue}' 
+                     LIMIT {limit}"""
         with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
                 curs.execute(query)
@@ -206,5 +257,6 @@ class CoverArtLoader:
 
 if __name__ == '__main__':
     cal = CoverArtLoader("cache")
-    for release_mbid, caa_id in cal.fetch_all():
-        cal.fetch(release_mbid, caa_id)
+#    for release_mbid, caa_id in cal.fetch_all():
+#        cal.fetch(release_mbid, caa_id)
+#    cal.calculate_colors()
