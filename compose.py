@@ -12,8 +12,8 @@ from cache import CoverArtLoader
 
 class CoverArtMosaic:
 
-    COLOR_THRESHOLD = 50
-    QUERY_LIMIT = 10
+    COLOR_THRESHOLD = 100
+    QUERY_LIMIT = 20
 
     def __init__(self, cache_dir, pattern_file, tile_size):
         self.cache_dir = cache_dir
@@ -68,6 +68,11 @@ class CoverArtMosaic:
                 cover.resize(self.tile_size, self.tile_size)
 
                 composite.composite(left=self.tile_size * x, top=self.tile_size * y, image=cover)
+
+        max_dupes = 0
+        for mbid in used:
+            max_dupes = max(max_dupes, used[mbid])
+        print("max re-use count: %d" % max_dupes)
 
         composite.save(filename=output_file)
 
