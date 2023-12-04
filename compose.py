@@ -4,6 +4,7 @@ from collections import defaultdict
 import io
 import os
 import sys
+import json
 
 from wand.image import Image
 
@@ -31,6 +32,7 @@ class CoverArtMosaic:
 
         cal = CoverArtLoader("cache")
         composite = Image(height=self.image_size_y, width=self.image_size_x, background="#000000")
+        data = []
         for y in range(self.pattern_image.height):
             for x in range(self.pattern_image.width):
                 color = self.pattern_image[y][x]
@@ -62,6 +64,13 @@ class CoverArtMosaic:
                                                                           release["release_mbid"],
                                                                           used[release["release_mbid"]],
                                                                           releases[lowest_use_index]["score"]))
+                data.append({"x1": x * self.tile_size,
+                             "y1": y * self.tile_size,
+                             "x2": (x+1) * self.tile_size,
+                             "y2": (y+1) * self.tile_size,
+                             "name": "%s by %s" % (release["release_name"], release["artist_credit_name"]),
+                             "release_mbid": release["release_mbid"]})
+
                 path = cal.cache_path(release["release_mbid"])
 
                 cover = Image(filename=path)
@@ -76,6 +85,8 @@ class CoverArtMosaic:
 
         composite.save(filename=output_file)
 
+        with open(output_file + ".json", "w") as f:
+            f.write(json.dumps(data))
 
 
 if __name__ == '__main__':

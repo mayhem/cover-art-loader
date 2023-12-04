@@ -5,13 +5,14 @@ import os
 import sys
 from time import sleep
 from uuid import UUID
+import concurrent.futures
 
 import psycopg2
 from psycopg2.extras import execute_values
 import psycopg2.errors
 import requests
 from wand.image import Image
-import concurrent.futures
+from tqdm import tqdm
 
 import config
 
@@ -21,8 +22,9 @@ def get_predominant_color_helper(obj, release_mbid):
 
 class CoverArtLoader:
 
-    def __init__(self, cache_dir):
+    def __init__(self, cache_dir, year):
         self.cache_dir = cache_dir
+        self.year = year
 
 
     def cache_path(self, release_mbid):
@@ -57,7 +59,7 @@ class CoverArtLoader:
                 return None, f"Could not load resource: {r.status_code}."
 
             if r.status_code == 429:
-                log("Exceeded rate limit. sleeping %d seconds." % sleep_duration)
+                print("Exceeded rate limit. sleeping %d seconds." % sleep_duration)
                 sleep(sleep_duration)
                 sleep_duration *= 2
                 if sleep_duration > 100:
@@ -66,7 +68,7 @@ class CoverArtLoader:
                 continue
 
             if r.status_code == 503:
-                log("Service not available. sleeping %d seconds." % sleep_duration)
+                print("Service not available. sleeping %d seconds." % sleep_duration)
                 sleep(sleep_duration)
                 sleep_duration *= 2
                 if sleep_duration > 100:
@@ -125,7 +127,7 @@ class CoverArtLoader:
                      JOIN cover_art_archive.cover_art_type cat
                        ON cat.id = caa.id
                     WHERE type_id = 1
-                      AND rc.date_year = 2022
+                      AND rc.date_year = %d
                UNION
                    SELECT rl.gid AS release_mbid
                         , rl.release_group AS release_group_id
@@ -138,7 +140,7 @@ class CoverArtLoader:
                      JOIN cover_art_archive.cover_art_type cat
                        ON cat.id = caa.id
                     WHERE type_id = 1
-                      AND ruc.date_year = 2022
+                      AND ruc.date_year = %d
          ), distinct_releases_year AS (
                    SELECT DISTINCT ry.release_mbid
                         , ry.release_group_id
@@ -159,7 +161,7 @@ class CoverArtLoader:
                         , dry.release_group_id
                         , dry.caa_id
                         , dry.rnum
-                   HAVING dry.rnum = 1"""
+                   HAVING dry.rnum = 1""" % (self.year, self.year)
 
         with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
@@ -183,28 +185,45 @@ class CoverArtLoader:
     def calculate_colors(self):
 
         release_colors = {}
+        print("fetch release list from db")
         releases = self.fetch_all()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
-            print("Submit jobs")
-            futures = {executor.submit(get_predominant_color_helper, self, release[0]) :
-                       release
-                       for release in releases}
-            for future in concurrent.futures.as_completed(futures):
-                release = futures[future]
-                try:
-                    color = future.result()
-                    if color is not None:
-                        release_colors[release] = color
-                except Exception as exc:
-                    print('%s generated an exception: %s' % (release_mbid, exc))
+        print("calculate colors")
+        calculated = 0
+        with tqdm(total=len(releases)) as pbar:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
+                futures = {executor.submit(get_predominant_color_helper, self, release[0]) :
+                           release
+                           for release in releases}
+                for future in concurrent.futures.as_completed(futures):
+                    release = futures[future]
+                    try:
+                        color = future.result()
+                        if color is not None:
+                            release_colors[release] = color
+                            calculated += 1
+                    except Exception as exc:
+                        print('%s generated an exception: %s' % (release_mbid, exc))
+                    pbar.update(1)
 
+        print("Calculated colors for %s releases" % calculated)
+
+        print("save color to db")
         with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
                 try:
-                    curs.execute("TRUNCATE mapping.release_colors_yim_subset")
+                    curs.execute("DROP TABLE mapping.release_colors_yim_subset")
                     conn.commit()
                 except psycopg2.errors.UndefinedTable:
                     conn.rollback()
+
+                curs.execute("""CREATE TABLE mapping.release_colors_yim_subset (
+                                            caa_id         BIGINT NOT NULL,
+                                            release_mbid   UUID NOT NULL,
+                                            red            INTEGER NOT NULL,
+                                            green          INTEGER NOT NULL,
+                                            blue           INTEGER NOT NULL,
+                                            color          CUBE)""")
+                conn.commit();
 
                 values = []
                 for release in release_colors:
@@ -213,6 +232,8 @@ class CoverArtLoader:
                 execute_values(curs, """INSERT INTO mapping.release_colors_yim_subset 
                                          (caa_id, release_mbid, red, green, blue, color) VALUES %s""", values)
                 conn.commit()
+
+
 
 
     def create_subset_table(self, release_caa_ids):
@@ -241,8 +262,14 @@ class CoverArtLoader:
 
         releases = []
         query = f"""SELECT *
+                         , r.name AS release_name
+                         , ac.name AS artist_credit_name
                          , color <-> '{red}, {green}, {blue}' AS score
                       FROM mapping.release_colors_yim_subset
+                      JOIN release r
+                        ON r.gid = release_mbid
+                      JOIN artist_credit ac
+                        ON r.artist_credit = ac.id
                      WHERE color <-> '{red}, {green}, {blue}'::CUBE < {threshold}
                   ORDER BY color <-> '{red}, {green}, {blue}' 
                      LIMIT {limit}"""
@@ -256,7 +283,11 @@ class CoverArtLoader:
 
 
 if __name__ == '__main__':
-    cal = CoverArtLoader("cache")
-#    for release_mbid, caa_id in cal.fetch_all():
-#        cal.fetch(release_mbid, caa_id)
+    if len(sys.argv) < 3:
+        print("Usage: cache.py <cache_dir> <year>")
+        sys.exit(-1)
+
+    cal = CoverArtLoader(sys.argv[1], int(sys.argv[2]))
+    for release_mbid, caa_id in cal.fetch_all():
+        cal.fetch(release_mbid, caa_id)
 #    cal.calculate_colors()
