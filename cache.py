@@ -182,6 +182,13 @@ class CoverArtLoader:
         image.resize(1, 1)
         return (int(255 * image[0][0].red), int(255 * image[0][0].green), int(255 * image[0][0].blue))
 
+    def to_color16(self, color):
+        return ((color[0] >> 3) << 11) | ((color[1] >> 2) << 5) | (color[2] >> 3)
+
+    def from_color16(self, color):
+        return ((color >> 11 << 3), (((color >> 5) & 63) << 2), ((color & 31) << 3))
+
+
     def calculate_colors(self):
 
         release_colors = {}
@@ -222,18 +229,18 @@ class CoverArtLoader:
                                             red            INTEGER NOT NULL,
                                             green          INTEGER NOT NULL,
                                             blue           INTEGER NOT NULL,
+                                            color16        INTEGER NOT NULL,
                                             color          CUBE)""")
                 conn.commit();
 
                 values = []
                 for release in release_colors:
                     color = release_colors[release]
-                    values.append((release[1], release[0], color[0], color[1], color[2], "(%d,%d,%d)" % (color[0], color[1], color[2])))
+                    col16 = self.to_color16(color)
+                    values.append((release[1], release[0], color[0], color[1], color[2], col16, "(%d,%d,%d)" % (color[0], color[1], color[2])))
                 execute_values(curs, """INSERT INTO mapping.release_colors_yim_subset 
-                                         (caa_id, release_mbid, red, green, blue, color) VALUES %s""", values)
+                                         (caa_id, release_mbid, red, green, blue, color16, color) VALUES %s""", values)
                 conn.commit()
-
-
 
 
     def create_subset_table(self, release_caa_ids):
@@ -281,6 +288,21 @@ class CoverArtLoader:
 
         return releases
 
+    def get_color_histogram(self):
+
+        query = """SELECT color16
+                        , COUNT(*)
+                     FROM mapping.release_colors_yim_subset
+                 GROUP BY color16
+                 ORDER BY color16"""
+
+        colors = []
+        with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
+                curs.execute(query)
+                for row in curs:
+                    colors.append(row)
+        return colors
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

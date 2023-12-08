@@ -16,10 +16,11 @@ class CoverArtMosaic:
     COLOR_THRESHOLD = 100
     QUERY_LIMIT = 20
 
-    def __init__(self, cache_dir, pattern_file, tile_size):
+    def __init__(self, cache_dir, pattern_file, tile_size, year):
         self.cache_dir = cache_dir
         self.tile_size = tile_size
         self.pattern_file = pattern_file
+        self.year = year
 
         self.pattern_image = Image(filename=pattern_file)
         self.image_size_x = tile_size * self.pattern_image.width 
@@ -30,7 +31,7 @@ class CoverArtMosaic:
 
         used = defaultdict(int)
 
-        cal = CoverArtLoader("cache")
+        cal = CoverArtLoader("cache-2023", self.year)
         composite = Image(height=self.image_size_y, width=self.image_size_x, background="#000000")
         data = []
         for y in range(self.pattern_image.height):
@@ -90,14 +91,14 @@ class CoverArtMosaic:
 
 
 if __name__ == '__main__':
-    cal = CoverArtLoader("cache")
+#    cal = CoverArtLoader("cache")
 #    release_data = cal.fetch_all()
 #    cal.create_subset_table(release_data)
 
-    if len(sys.argv) < 3:
-        print("Usage: compose.py <tile size> <base image PNG> <output image JPG>")
+    if len(sys.argv) < 4:
+        print("Usage: compose.py <tile size> <base image PNG> <output image JPG> <year>")
         sys.exit(-1)
 
-    mos = CoverArtMosaic("cache", sys.argv[2], int(sys.argv[1]))
+    mos = CoverArtMosaic("cache", sys.argv[2], int(sys.argv[1]) , int(sys.argv[4]))
     mos.create(sys.argv[3])
     sys.exit(0)
