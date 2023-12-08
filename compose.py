@@ -7,6 +7,8 @@ import sys
 import json
 
 from wand.image import Image
+from tqdm import tqdm
+import wand.exceptions
 
 from cache import CoverArtLoader
 
@@ -31,63 +33,68 @@ class CoverArtMosaic:
 
         used = defaultdict(int)
 
+        print("Create image size %d * %d with tile size %d." % (self.image_size_x, self.image_size_y, self.tile_size))
         cal = CoverArtLoader("cache-2023", self.year)
         composite = Image(height=self.image_size_y, width=self.image_size_x, background="#000000")
         data = []
-        for y in range(self.pattern_image.height):
-            for x in range(self.pattern_image.width):
-                color = self.pattern_image[y][x]
-                color = (int(255 * color.red), int(255 * color.green), int(255 * color.blue))
 
-                lowest_use_count = None
-                lowest_use_index = None
-                releases = cal.lookup(self.COLOR_THRESHOLD, self.QUERY_LIMIT, color[0], color[1], color[2])
-                if len(releases) == 0:
-                    continue
+        with tqdm(total=self.pattern_image.height * self.pattern_image.width) as pbar:
+            for y in range(self.pattern_image.height):
+                for x in range(self.pattern_image.width):
+                    color = self.pattern_image[y][x]
+                    color = (int(255 * color.red), int(255 * color.green), int(255 * color.blue))
 
-                for i, release in enumerate(releases):
-                    release_mbid = release["release_mbid"]
-                    if i == 0:
-                        lowest_use_count = used[release_mbid]
-                        lowest_use_index = i
-                    if used[release_mbid] < lowest_use_count:
-                        lowest_use_count = used[release_mbid]
-                        lowest_use_index = i
+                    lowest_use_count = None
+                    lowest_use_index = None
+                    releases = cal.lookup(self.COLOR_THRESHOLD, self.QUERY_LIMIT, color[0], color[1], color[2])
+                    if len(releases) == 0:
+                        continue
 
-                if lowest_use_index is None:
-                    continue
+                    for i, release in enumerate(releases):
+                        release_mbid = release["release_mbid"]
+                        if i == 0:
+                            lowest_use_count = used[release_mbid]
+                            lowest_use_index = i
+                        if used[release_mbid] < lowest_use_count:
+                            lowest_use_count = used[release_mbid]
+                            lowest_use_index = i
 
-                release = releases[lowest_use_index]
-                used[release["release_mbid"]] += 1
+                    if lowest_use_index is None:
+                        continue
 
-                print("(%3d %3d) (%3d %3d %3d)-(%3d %3d %3d) %s %d %d" % (x, y, color[0], color[1], color[2],
-                                                                          release["red"], release["green"], release["blue"],
-                                                                          release["release_mbid"],
-                                                                          used[release["release_mbid"]],
-                                                                          releases[lowest_use_index]["score"]))
-                data.append({"x1": x * self.tile_size,
-                             "y1": y * self.tile_size,
-                             "x2": (x+1) * self.tile_size,
-                             "y2": (y+1) * self.tile_size,
-                             "name": "%s by %s" % (release["release_name"], release["artist_credit_name"]),
-                             "release_mbid": release["release_mbid"]})
+                    release = releases[lowest_use_index]
+                    used[release["release_mbid"]] += 1
 
-                path = cal.cache_path(release["release_mbid"])
+    #                print("(%3d %3d) (%3d %3d %3d)-(%3d %3d %3d) %s %d %d" % (x, y, color[0], color[1], color[2],
+    #                                                                          release["red"], release["green"], release["blue"],
+    #                                                                          release["release_mbid"],
+    #                                                                          used[release["release_mbid"]],
+    #                                                                          releases[lowest_use_index]["score"]))
+                    data.append({"x1": x * self.tile_size,
+                                 "y1": y * self.tile_size,
+                                 "x2": (x+1) * self.tile_size,
+                                 "y2": (y+1) * self.tile_size,
+                                 "name": "%s by %s" % (release["release_name"], release["artist_credit_name"]),
+                                 "release_mbid": release["release_mbid"]})
 
-                cover = Image(filename=path)
-                cover.resize(self.tile_size, self.tile_size)
+                    path = cal.cache_path(release["release_mbid"])
 
-                composite.composite(left=self.tile_size * x, top=self.tile_size * y, image=cover)
+                    cover = Image(filename=path)
+                    cover.resize(self.tile_size, self.tile_size)
 
-        max_dupes = 0
-        for mbid in used:
-            max_dupes = max(max_dupes, used[mbid])
-        print("max re-use count: %d" % max_dupes)
+                    composite.composite(left=self.tile_size * x, top=self.tile_size * y, image=cover)
 
-        composite.save(filename=output_file)
+                    pbar.update(1)
 
-        with open(output_file + ".json", "w") as f:
-            f.write(json.dumps(data))
+            max_dupes = 0
+            for mbid in used:
+                max_dupes = max(max_dupes, used[mbid])
+            print("max re-use count: %d" % max_dupes)
+
+            composite.save(filename=output_file)
+
+            with open(output_file + ".json", "w") as f:
+                f.write(json.dumps(data))
 
 
 if __name__ == '__main__':
