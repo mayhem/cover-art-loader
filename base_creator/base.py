@@ -4,21 +4,21 @@ from colorsys import hsv_to_rgb
 
 def create_base_image():
 
-    width = 10
-    height = 10
+    width = 200
+    height = 148
 
     bitmap = [ [ 0 for x in range(width) ] for y in range(height) ]
     for x in range(width):
         for y in range(height):
             if y < height / 2:
-                v = 1.0 - (y / height * 2.0)
-                s = 0
+                s = (y / height) * 2.0
+                v = 1.0
             else:
-                v = 0
-                s = ((y / height) - .5) * 2.0
+                s = 1.0
+                v = 2.0 - (y / height * 2.0)
 
             h = x / float(width)
-            print(h,s,v)
+            print("%1.2f %1.2f %1.2f" % (h,s,v))
 
             rgb = hsv_to_rgb(h,s,v)
             bitmap[y][x] = (int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255))
