@@ -6,22 +6,25 @@ def create_base_image():
 
     width = 200
     height = 148
+    max_sv = .8
 
     bitmap = [ [ 0 for x in range(width) ] for y in range(height) ]
     for x in range(width):
         for y in range(height):
             if y < height / 2:
-                s = (y / height) * 2.0
-                v = 1.0
+                s = ((y / height) * 2.0) * max_sv
+                v = max_sv
             else:
-                s = 1.0
-                v = 2.0 - (y / height * 2.0)
+                s = max_sv
+                v = (max_sv * 2) - ((y / height * 2.0) * max_sv)
 
             h = x / float(width)
-            print("%1.2f %1.2f %1.2f" % (h,s,v))
+
+            print("%.2f %.2f %.2f" % (h, s, v))
 
             rgb = hsv_to_rgb(h,s,v)
             bitmap[y][x] = (int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255))
+        print()
 
     with open("test.ppm", "w") as f:
         f.write("P3\n")
