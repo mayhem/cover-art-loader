@@ -36,21 +36,37 @@ def create_rectangular_base_image(png_file, width, height, max_sv):
     save_image(png_file, width, height, bitmap)
 
 
-def create_circular_base_image(png_file, radius, max_sv):
+def create_circular_base_image(png_file, radius, max_sv, more_black=True):
 
     dia = radius * 2
-    print(dia)
     bitmap = [ [ (0, 0, 0, 0) for x in range(dia) ] for y in range(dia) ]
 
+    scale = 20
     for r in range(radius):
-        for t in range(3600):
-            x = int((cos(radians(t/10)) * r) + radius)
-            y = int((sin(radians(t/10)) * r) + radius)
+        for t in range(360 * scale):
+            if more_black:
+                if r < radius / 2:
+                    s = ((r / radius) * 2.0) * max_sv
+                    v = max_sv
+                else:
+                    s = max_sv
+                    v = (max_sv * 2) - ((r / radius * 2.0) * max_sv)
+            else:
+                if r < radius / 2:
+                    v = ((r / radius) * 2.0) * max_sv
+                    s = max_sv
+                else:
+                    v = max_sv
+                    s = (max_sv * 2) - ((r / radius * 2.0) * max_sv)
 
-            rgb = hsv_to_rgb(t / 360, 1.0, 1.0)
+            x = int((cos(radians(t/scale)) * r) + radius)
+            y = int((sin(radians(t/scale)) * r) + radius)
+
+            rgb = hsv_to_rgb(t / (360 * scale), s, v)
             bitmap[y][x] = (int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255), 255)
 
     save_image(png_file, dia, dia, bitmap, "RGBA")
 
 #create_rectangular_base_image("base.png", width=200, height=148, max_sv=.7)
-create_circular_base_image("base.png", 500, max_sv=.7)
+create_circular_base_image("base-circular-black.png", 200, max_sv=.8, more_black=True)
+create_circular_base_image("base-circular-white.png", 200, max_sv=.8, more_black=False)
