@@ -42,7 +42,7 @@ class CoverArtMosaic:
             for y in range(self.pattern_image.height):
                 for x in range(self.pattern_image.width):
                     color = self.pattern_image[y][x]
-                    if color.alpha == 255:
+                    if color.alpha == 0.0:
                         continue
 
                     color = (int(255 * color.red), int(255 * color.green), int(255 * color.blue))
