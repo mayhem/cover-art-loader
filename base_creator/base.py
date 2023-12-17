@@ -69,13 +69,13 @@ def create_circular_base_image(radius, max_sv, more_black=True):
     return make_image(dia, dia, bitmap, "RGBA")
 
 
-black = create_circular_base_image(200, max_sv=.8, more_black=True)
-white = create_circular_base_image(200, max_sv=.8, more_black=False)
+black = create_circular_base_image(200, max_sv=.9, more_black=True)
+white = create_circular_base_image(200, max_sv=.9, more_black=False)
 
 width = (200 * 4) + (50 * 3)
 height = (200 * 2) + (50 * 2)
 
-base = Image.new('RGBA', (width, height), (0, 0, 0, 255))
-base.composite(left=50, top=50, image=black)
-base.composite(left=500, top=50, image=white)
+base = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+base.paste(black, (50, 50))
+base.paste(white, (500, 50))
 base.save("base-image.png")
