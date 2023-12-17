@@ -25,31 +25,37 @@ class CoverArtMosaic:
         self.year = year
 
         self.pattern_image = Image(filename=pattern_file)
-        self.image_size_x = tile_size * self.pattern_image.width 
-        self.image_size_y = tile_size * self.pattern_image.height 
-
+        self.image_size_x = tile_size * self.pattern_image.width
+        self.image_size_y = tile_size * self.pattern_image.height
 
     def create(self, output_file):
 
         used = defaultdict(int)
 
-        print("Create image size %d * %d with tile size %d." % (self.image_size_x, self.image_size_y, self.tile_size))
+        print("Create image size %d * %d with tile size %d." %
+              (self.image_size_x, self.image_size_y, self.tile_size))
         cal = CoverArtLoader("cache-2023", self.year)
-        composite = Image(height=self.image_size_y, width=self.image_size_x, background="#000000")
+        composite = Image(height=self.image_size_y,
+                          width=self.image_size_x,
+                          background="#000000")
         data = []
 
-        with tqdm(total=self.pattern_image.height * self.pattern_image.width) as pbar:
+        with tqdm(total=self.pattern_image.height *
+                  self.pattern_image.width) as pbar:
             for y in range(self.pattern_image.height):
                 for x in range(self.pattern_image.width):
                     color = self.pattern_image[y][x]
                     if color.alpha == 0.0:
                         continue
 
-                    color = (int(255 * color.red), int(255 * color.green), int(255 * color.blue))
+                    color = (int(255 * color.red), int(255 * color.green),
+                             int(255 * color.blue))
 
                     lowest_use_count = None
                     lowest_use_index = None
-                    releases = cal.lookup(self.COLOR_THRESHOLD, self.QUERY_LIMIT, color[0], color[1], color[2])
+                    releases = cal.lookup(self.COLOR_THRESHOLD,
+                                          self.QUERY_LIMIT, color[0], color[1],
+                                          color[2])
                     if len(releases) == 0:
                         continue
 
@@ -68,24 +74,33 @@ class CoverArtMosaic:
                     release = releases[lowest_use_index]
                     used[release["release_mbid"]] += 1
 
-    #                print("(%3d %3d) (%3d %3d %3d)-(%3d %3d %3d) %s %d %d" % (x, y, color[0], color[1], color[2],
-    #                                                                          release["red"], release["green"], release["blue"],
-    #                                                                          release["release_mbid"],
-    #                                                                          used[release["release_mbid"]],
-    #                                                                          releases[lowest_use_index]["score"]))
-                    data.append({"x1": x * self.tile_size,
-                                 "y1": y * self.tile_size,
-                                 "x2": (x+1) * self.tile_size,
-                                 "y2": (y+1) * self.tile_size,
-                                 "name": "%s by %s" % (release["release_name"], release["artist_credit_name"]),
-                                 "release_mbid": release["release_mbid"]})
+                    #                print("(%3d %3d) (%3d %3d %3d)-(%3d %3d %3d) %s %d %d" % (x, y, color[0], color[1], color[2],
+                    #                                                                          release["red"], release["green"], release["blue"],
+                    #                                                                          release["release_mbid"],
+                    #                                                                          used[release["release_mbid"]],
+                    #                                                                          releases[lowest_use_index]["score"]))
+                    data.append({
+                        "x1":
+                        x * self.tile_size,
+                        "y1":
+                        y * self.tile_size,
+                        "x2": (x + 1) * self.tile_size,
+                        "y2": (y + 1) * self.tile_size,
+                        "name":
+                        "%s by %s" % (release["release_name"],
+                                      release["artist_credit_name"]),
+                        "release_mbid":
+                        release["release_mbid"]
+                    })
 
                     path = cal.cache_path(release["release_mbid"])
 
                     cover = Image(filename=path)
                     cover.resize(self.tile_size, self.tile_size)
 
-                    composite.composite(left=self.tile_size * x, top=self.tile_size * y, image=cover)
+                    composite.composite(left=self.tile_size * x,
+                                        top=self.tile_size * y,
+                                        image=cover)
 
                     pbar.update(1)
 
@@ -101,14 +116,17 @@ class CoverArtMosaic:
 
 
 if __name__ == '__main__':
-#    cal = CoverArtLoader("cache")
-#    release_data = cal.fetch_all()
-#    cal.create_subset_table(release_data)
+    #    cal = CoverArtLoader("cache")
+    #    release_data = cal.fetch_all()
+    #    cal.create_subset_table(release_data)
 
     if len(sys.argv) < 4:
-        print("Usage: compose.py <tile size> <base image PNG> <output image JPG> <year>")
+        print(
+            "Usage: compose.py <tile size> <base image PNG> <output image JPG> <year>"
+        )
         sys.exit(-1)
 
-    mos = CoverArtMosaic("cache", sys.argv[2], int(sys.argv[1]) , int(sys.argv[4]))
+    mos = CoverArtMosaic("cache", sys.argv[2], int(sys.argv[1]),
+                         int(sys.argv[4]))
     mos.create(sys.argv[3])
     sys.exit(0)
