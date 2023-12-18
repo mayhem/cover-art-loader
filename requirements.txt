@@ -4,4 +4,4 @@ ujson==5.4.0
 requests
 wand
 tqdm
-pillow
+pillow==10.1.0

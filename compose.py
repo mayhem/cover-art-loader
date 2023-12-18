@@ -3,12 +3,12 @@
 from collections import defaultdict
 import io
 import os
+from random import randint
 import sys
 import json
 
-from wand.image import Image
+from PIL import Image
 from tqdm import tqdm
-import wand.exceptions
 
 from cache import CoverArtLoader
 
@@ -16,7 +16,7 @@ from cache import CoverArtLoader
 class CoverArtMosaic:
 
     COLOR_THRESHOLD = 100
-    QUERY_LIMIT = 20
+    QUERY_LIMIT = 10
 
     def __init__(self, cache_dir, pattern_file, tile_size, year):
         self.cache_dir = cache_dir
@@ -24,7 +24,7 @@ class CoverArtMosaic:
         self.pattern_file = pattern_file
         self.year = year
 
-        self.pattern_image = Image(filename=pattern_file)
+        self.pattern_image = Image.open(pattern_file)
         self.image_size_x = tile_size * self.pattern_image.width
         self.image_size_y = tile_size * self.pattern_image.height
 
@@ -35,50 +35,26 @@ class CoverArtMosaic:
         print("Create image size %d * %d with tile size %d." %
               (self.image_size_x, self.image_size_y, self.tile_size))
         cal = CoverArtLoader("cache-2023", self.year)
-        composite = Image(height=self.image_size_y,
-                          width=self.image_size_x,
-                          background="#000000")
+        composite = Image.new(mode="RGBA", size=(self.image_size_x, self.image_size_y), color=(0,0,0,0))
         data = []
 
-        with tqdm(total=self.pattern_image.height *
-                  self.pattern_image.width) as pbar:
+        with tqdm(total=self.pattern_image.height * self.pattern_image.width) as pbar:
             for y in range(self.pattern_image.height):
                 for x in range(self.pattern_image.width):
-                    color = self.pattern_image[y][x]
-                    if color.alpha == 0.0:
+
+                    color = self.pattern_image.getpixel((x,y))
+                    if color[3] == 0:
+                        pbar.update(1)
                         continue
 
-                    color = (int(255 * color.red), int(255 * color.green),
-                             int(255 * color.blue))
-
-                    lowest_use_count = None
-                    lowest_use_index = None
-                    releases = cal.lookup(self.COLOR_THRESHOLD,
-                                          self.QUERY_LIMIT, color[0], color[1],
-                                          color[2])
+                    releases = cal.lookup(self.COLOR_THRESHOLD, self.QUERY_LIMIT, color[0], color[1], color[2])
                     if len(releases) == 0:
                         continue
 
-                    for i, release in enumerate(releases):
-                        release_mbid = release["release_mbid"]
-                        if i == 0:
-                            lowest_use_count = used[release_mbid]
-                            lowest_use_index = i
-                        if used[release_mbid] < lowest_use_count:
-                            lowest_use_count = used[release_mbid]
-                            lowest_use_index = i
-
-                    if lowest_use_index is None:
-                        continue
-
-                    release = releases[lowest_use_index]
+                    # Pick a random release
+                    release = releases[randint(0, len(releases)-1)]
                     used[release["release_mbid"]] += 1
 
-                    #                print("(%3d %3d) (%3d %3d %3d)-(%3d %3d %3d) %s %d %d" % (x, y, color[0], color[1], color[2],
-                    #                                                                          release["red"], release["green"], release["blue"],
-                    #                                                                          release["release_mbid"],
-                    #                                                                          used[release["release_mbid"]],
-                    #                                                                          releases[lowest_use_index]["score"]))
                     data.append({
                         "x1":
                         x * self.tile_size,
@@ -95,21 +71,14 @@ class CoverArtMosaic:
 
                     path = cal.cache_path(release["release_mbid"])
 
-                    cover = Image(filename=path)
-                    cover.resize(self.tile_size, self.tile_size)
+                    cover = Image.open(path)
+                    resized = cover.resize((self.tile_size, self.tile_size))
 
-                    composite.composite(left=self.tile_size * x,
-                                        top=self.tile_size * y,
-                                        image=cover)
+                    composite.paste(resized, (self.tile_size * x, self.tile_size * y))
 
                     pbar.update(1)
 
-            max_dupes = 0
-            for mbid in used:
-                max_dupes = max(max_dupes, used[mbid])
-            print("max re-use count: %d" % max_dupes)
-
-            composite.save(filename=output_file)
+            composite.save(output_file, "PNG")
 
             with open(output_file + ".json", "w") as f:
                 f.write(json.dumps(data))

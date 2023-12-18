@@ -264,22 +264,31 @@ class CoverArtLoader:
                     conn.rollback()
 
                 curs.execute(query, (tuple(release_mbids),))
+                # create index release_colors_yim_subset_ndx_color on mapping.release_colors_yim_subset(color);
 
     def lookup(self, threshold, limit, red, green, blue):
 
         releases = []
-        query = f"""SELECT *
-                         , r.name AS release_name
-                         , ac.name AS artist_credit_name
+        query = f""" WITH release_colors AS ( 
+                    SELECT release_mbid AS mbid
                          , color <-> '{red}, {green}, {blue}' AS score
+                         , color
                       FROM mapping.release_colors_yim_subset
+                     WHERE color <-> '{red}, {green}, {blue}'::CUBE < {threshold}
+                  ORDER BY color <-> '{red}, {green}, {blue}'
+                     LIMIT {limit}
+                )    
+                    SELECT r.gid AS release_mbid
+                         , r.name AS release_name  
+                         , ac.name AS artist_credit_name
+                         , score
+                      FROM release_colors rc
                       JOIN release r
-                        ON r.gid = release_mbid
+                        ON r.gid = rc.mbid
                       JOIN artist_credit ac
                         ON r.artist_credit = ac.id
-                     WHERE color <-> '{red}, {green}, {blue}'::CUBE < {threshold}
-                  ORDER BY color <-> '{red}, {green}, {blue}' 
-                     LIMIT {limit}"""
+                  ORDER BY color <-> '{red}, {green}, {blue}'"""
+
         with psycopg2.connect(config.MBID_MAPPING_DATABASE_URI) as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curs:
                 curs.execute(query)

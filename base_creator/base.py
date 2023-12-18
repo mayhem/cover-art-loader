@@ -3,7 +3,7 @@
 from colorsys import hsv_to_rgb
 from math import sin, cos, radians
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 
 def make_image(width, height, bitmap, mode="RGB"):
@@ -68,14 +68,25 @@ def create_circular_base_image(radius, max_sv, more_black=True):
 
     return make_image(dia, dia, bitmap, "RGBA")
 
+radius = 100
+border = radius // 6
+tile_size = 10
 
-black = create_circular_base_image(200, max_sv=.9, more_black=True)
-white = create_circular_base_image(200, max_sv=.9, more_black=False)
+black = create_circular_base_image(radius, max_sv=.9, more_black=True)
+white = create_circular_base_image(radius, max_sv=.9, more_black=False)
 
-width = (200 * 4) + (50 * 3)
-height = (200 * 2) + (50 * 2)
+width = (radius * 4) + (border * 3)
+height = (radius * 2) + (border * 2)
 
 base = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-base.paste(black, (50, 50))
-base.paste(white, (500, 50))
+base.paste(black, (border, border))
+base.paste(white, ((radius * 2) + (border * 2), border))
 base.save("base-image.png")
+
+mask = Image.new('RGBA', (width * tile_size, height + tile_size), (0, 0, 0, 0))
+mask_draw = ImageDraw.Draw(mask)
+mask_draw.ellipse((border, border, border + radius + radius, border + radius + radius), fill=(0,0,0))
+mask_draw.ellipse((border * 2 + (radius * 2), border, border * 2 + (radius * 4), border + radius + radius), fill=(0,0,0))
+mask.save("base-image-mask.png")
+
+
