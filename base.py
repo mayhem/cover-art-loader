@@ -69,7 +69,7 @@ def create_circular_base_image(radius, max_sv, more_black=True):
     return make_image(dia, dia, bitmap, "RGBA")
 
 radius = 100
-border = radius // 6
+border = radius // 8
 tile_size = 10
 
 black = create_circular_base_image(radius, max_sv=.9, more_black=True)
@@ -83,10 +83,10 @@ base.paste(black, (border, border))
 base.paste(white, ((radius * 2) + (border * 2), border))
 base.save("base-image.png")
 
-mask = Image.new('RGBA', (width * tile_size, height + tile_size), (0, 0, 0, 0))
+mask = Image.new('RGBA', (width * tile_size, height * tile_size), (0, 0, 0, 0))
 mask_draw = ImageDraw.Draw(mask)
-mask_draw.ellipse((border, border, border + radius + radius, border + radius + radius), fill=(0,0,0))
-mask_draw.ellipse((border * 2 + (radius * 2), border, border * 2 + (radius * 4), border + radius + radius), fill=(0,0,0))
+tborder = border * tile_size
+tradius = radius * tile_size
+mask_draw.ellipse((tborder, tborder, tborder + tradius + tradius, tborder + tradius + tradius), fill=(0,0,0))
+mask_draw.ellipse((tborder * 2 + (tradius * 2), tborder, tborder * 2 + (tradius * 4), tborder + tradius + tradius), fill=(0,0,0))
 mask.save("base-image-mask.png")
-
-
