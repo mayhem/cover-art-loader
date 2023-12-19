@@ -8,7 +8,7 @@ from base import create_rectangular_base_image, create_circular_base_image
 
 
 def create_base_images(radius, tile_size):
-    border = radius // 8
+    border = radius // 10 
 
     black = create_circular_base_image(radius, max_sv=.9, more_black=True)
     white = create_circular_base_image(radius, max_sv=.9, more_black=False)
@@ -20,7 +20,7 @@ def create_base_images(radius, tile_size):
     base.paste(black, (border, border))
     base.paste(white, ((radius * 2) + (border * 2), border))
 
-    mask = Image.new('RGBA', (width * tile_size, height * tile_size), (0, 0, 0, 255))
+    mask = Image.new('RGBA', (width * tile_size, height * tile_size), (255, 255, 255, 0))
     mask_draw = ImageDraw.Draw(mask)
     tborder = border * tile_size
     tradius = (radius * tile_size)
@@ -37,8 +37,8 @@ def create_base_images(radius, tile_size):
     bbox_left = (bbox_left[0] + tile_size, bbox_left[1] + tile_size, bbox_left[2] - tile_size, bbox_left[3] - tile_size)
     bbox_right = (bbox_right[0] + tile_size, bbox_right[1] + tile_size, bbox_right[2] - tile_size, bbox_right[3] - tile_size)
 
-    mask_draw.ellipse(bbox_left, fill=(255, 255, 255))
-    mask_draw.ellipse(bbox_right, fill=(255, 255, 255))
+    mask_draw.ellipse(bbox_left, fill=(0, 0, 0))
+    mask_draw.ellipse(bbox_right, fill=(0, 0, 0))
 
     return base, mask
 
@@ -61,6 +61,6 @@ if __name__ == '__main__':
     with open(output_file + ".json", "w") as f:
         f.write(json.dumps(json_data))
 
-    transparent = Image.new(size=mosaic.size, color=(0, 0, 0, 255), mode="RGBA")
+    transparent = Image.new(size=mosaic.size, color=(0, 0, 0, 0), mode="RGBA")
     mosaic = Image.composite(mosaic, transparent, base_mask)
-    mosaic.save(output_file, "PNG")
+    mosaic.save(output_file)

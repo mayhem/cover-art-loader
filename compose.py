@@ -68,20 +68,14 @@ class CoverArtMosaic:
 
                         path = cal.cache_path(release["release_mbid"])
                         cover = Image.open(path)
-                        resized = cover.resize((self.tile_size, self.tile_size))
+                        tile = cover.resize((self.tile_size, self.tile_size))
 
-                        composite.paste(resized, (self.tile_size * x, self.tile_size * y))
                     else:
-                        print(
-                        ((x * self.tile_size,
-                                       y * self.tile_size),
-                                       ((x + 1) * self.tile_size,
-                                       (y + 1) * self.tile_size)))
-                        draw.rectangle(((x * self.tile_size,
-                                       y * self.tile_size),
-                                       ((x + 1) * self.tile_size,
-                                       (y + 1) * self.tile_size)),
-                                       fill=(color[0], color[1], color[2], 0))
+                        tile = Image.new(mode="RGBA",
+                                         size=(self.tile_size, self.tile_size),
+                                         color=(color[0], color[1], color[2], 255))
+
+                    composite.paste(tile, (self.tile_size * x, self.tile_size * y))
 
                     pbar.update(1)
 
