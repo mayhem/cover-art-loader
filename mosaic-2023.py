@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
     base_image, base_mask = create_base_images(radius, tile_size)
     mos = CoverArtMosaic(cache_dir, base_image, tile_size, year)
-    mosaic, json_data = mos.create(dry_run=True)
+    mosaic, json_data = mos.create(dry_run=False)
 
     with open(output_file + ".json", "w") as f:
         f.write(json.dumps(json_data))
