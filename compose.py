@@ -15,8 +15,8 @@ from cache import CoverArtLoader
 
 class CoverArtMosaic:
 
-    COLOR_THRESHOLD = 100
-    QUERY_LIMIT = 10
+    COLOR_THRESHOLD = 20
+    QUERY_LIMIT = 1000
 
     def __init__(self, cache_dir, base_image, tile_size, year):
         self.cache_dir = cache_dir
@@ -49,7 +49,15 @@ class CoverArtMosaic:
                         continue
 
                     if not dry_run:
-                        releases = cal.lookup(self.COLOR_THRESHOLD, self.QUERY_LIMIT, color[0], color[1], color[2])
+                        threshold = self.COLOR_THRESHOLD
+                        for tries in range(5):
+                            releases = cal.lookup(threshold, self.QUERY_LIMIT, color[0], color[1], color[2])
+                            if len(releases) == 0:
+                                threshold *= 2
+                                continue
+                            else:
+                                break
+
                         if len(releases) == 0:
                             continue
 

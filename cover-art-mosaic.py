@@ -40,7 +40,7 @@ if __name__ == '__main__':
     base_image = base_image.convert("RGBA")
 
     mos = CoverArtMosaic(cache_dir, base_image, tile_size, year)
-    mosaic, _ = mos.create(dry_run=True)
+    mosaic, _ = mos.create(dry_run=False)
     mosaic.save(output_file)
 
     sys.exit(-1)
