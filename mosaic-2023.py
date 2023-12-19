@@ -49,12 +49,7 @@ def add_logos(mosaic):
     lb_width = mosaic.size[0] // 6
     lb_height = lb_width * lb.size[1] // lb.size[0]
 
-#    lb = lb.resize((lb_width + 60, lb_height))
-#    lb = lb.rotate(4)
-
-    # 🤪🤪🤪🤪🤪🤪🤪🤪
-    lb = lb.resize((lb_width + 60, lb_height))
-    lb = lb.rotate(4)
+    lb = lb.resize((lb_width, lb_height))
    
     x = (mosaic.size[0] // 2) - (lb.size[0] // 2)
     y = lb.size[1]
