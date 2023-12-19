@@ -42,6 +42,33 @@ def create_base_images(radius, tile_size):
 
     return base, mask
 
+def add_logos(mosaic):
+
+    lb = Image.open("logos/ListenBrainz_logo.png")
+
+    lb_width = mosaic.size[0] // 6
+    lb_height = lb_width * lb.size[1] // lb.size[0]
+
+    lb = lb.resize((lb_width, lb_height))
+   
+    x = (mosaic.size[0] // 2) - (lb.size[0] // 2)
+    y = lb.size[1]
+    mosaic.paste(lb, (x, y))
+ 
+
+    ia = Image.open("logos/internet-archive-logo.png")
+
+    ia_width = mosaic.size[0] // 5
+    ia_height = ia_width * ia.size[1] // ia.size[0]
+
+    ia = ia.resize((ia_width, ia_height))
+   
+    x = (mosaic.size[0] // 2) - (ia.size[0] // 2)
+    y = mosaic.size[1] - int(ia.size[1] * 2.5)
+    mosaic.paste(ia, (x, y))
+
+    return mosaic
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 4:
@@ -63,4 +90,5 @@ if __name__ == '__main__':
 
     transparent = Image.new(size=mosaic.size, color=(0, 0, 0, 0), mode="RGBA")
     mosaic = Image.composite(mosaic, transparent, base_mask)
+    mosaic = add_logos(mosaic)
     mosaic.save(output_file)
