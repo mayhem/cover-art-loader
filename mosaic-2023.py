@@ -25,10 +25,10 @@ def create_base_images(radius, tile_size):
     tborder = border * tile_size
     tradius = (radius * tile_size)
 
-    bbox_left = (tborder + tile_size,
-                 tborder + tile_size,
-                 tborder + tradius + tradius - tile_size,
-                 tborder + tradius + tradius - tile_size)
+    bbox_left = (tborder,
+                 tborder,
+                 tborder + tradius + tradius,
+                 tborder + tradius + tradius)
     bbox_right = (tborder * 2 + (tradius * 2),
                   tborder,
                   tborder * 2 + (tradius * 4),
@@ -40,7 +40,9 @@ def create_base_images(radius, tile_size):
     mask_draw.ellipse(bbox_left, fill=(0, 0, 0))
     mask_draw.ellipse(bbox_right, fill=(0, 0, 0))
 
-    return base, mask
+    mask.save("mask.png")
+
+    return base, mask, bbox_left, bbox_right
 
 def add_logos(mosaic):
 
@@ -81,9 +83,10 @@ if __name__ == '__main__':
     year = int(sys.argv[4])
     cache_dir = f"cache-{year}"
 
-    base_image, base_mask = create_base_images(radius, tile_size)
+    base_image, base_mask, bbox_left, bbox_right = create_base_images(radius, tile_size)
     mos = CoverArtMosaic(cache_dir, base_image, tile_size, year)
-    mosaic, json_data = mos.create(dry_run=False)
+    mosaic, json_data = mos.create(dry_run=True)
+    mosaic.save("pre-mask.png")
 
     with open(output_file + ".json", "w") as f:
         f.write(json.dumps(json_data))
@@ -91,4 +94,9 @@ if __name__ == '__main__':
     transparent = Image.new(size=mosaic.size, color=(0, 0, 0, 0), mode="RGBA")
     mosaic = Image.composite(mosaic, transparent, base_mask)
     mosaic = add_logos(mosaic)
+
+    draw = ImageDraw.Draw(mosaic)
+    draw.rectangle(bbox_left, outline=(0,0,0,255), width=1)
+    draw.rectangle(bbox_right, outline=(0,0,0,255), width=1)
+
     mosaic.save(output_file)
