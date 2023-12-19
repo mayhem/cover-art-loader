@@ -242,6 +242,10 @@ class CoverArtLoader:
                                          (caa_id, release_mbid, red, green, blue, color16, color) VALUES %s""", values)
                 conn.commit()
 
+                print("create index")
+                curs.execute("""CREATE INDEX release_colors_yim_subset_ndx_color
+                                          ON mapping.release_colors_yim_subset(color)""")
+
 
     def create_subset_table(self, release_caa_ids):
 
@@ -264,7 +268,6 @@ class CoverArtLoader:
                     conn.rollback()
 
                 curs.execute(query, (tuple(release_mbids),))
-                # create index release_colors_yim_subset_ndx_color on mapping.release_colors_yim_subset(color);
 
     def lookup(self, threshold, limit, red, green, blue):
 
