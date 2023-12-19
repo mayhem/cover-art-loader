@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+import json
+import sys
+from PIL import Image, ImageDraw
+
+from compose import CoverArtMosaic
+from base import create_rectangular_base_image, create_circular_base_image
+
+
+def create_base_images(radius, tile_size):
+    border = radius // 8
+
+    black = create_circular_base_image(radius, max_sv=.9, more_black=True)
+    white = create_circular_base_image(radius, max_sv=.9, more_black=False)
+
+    width = (radius * 4) + (border * 3)
+    height = (radius * 2) + (border * 2)
+
+    base = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    base.paste(black, (border, border))
+    base.paste(white, ((radius * 2) + (border * 2), border))
+
+    mask = Image.new('RGBA', (width * tile_size, height * tile_size), (0, 0, 0, 255))
+    mask_draw = ImageDraw.Draw(mask)
+    tborder = border * tile_size
+    tradius = (radius * tile_size)
+
+    bbox_left = (tborder + tile_size,
+                 tborder + tile_size,
+                 tborder + tradius + tradius - tile_size,
+                 tborder + tradius + tradius - tile_size)
+    bbox_right = (tborder * 2 + (tradius * 2),
+                  tborder,
+                  tborder * 2 + (tradius * 4),
+                  tborder + tradius + tradius)
+
+    bbox_left = (bbox_left[0] + tile_size, bbox_left[1] + tile_size, bbox_left[2] - tile_size, bbox_left[3] - tile_size)
+    bbox_right = (bbox_right[0] + tile_size, bbox_right[1] + tile_size, bbox_right[2] - tile_size, bbox_right[3] - tile_size)
+
+    mask_draw.ellipse(bbox_left, fill=(255, 255, 255))
+    mask_draw.ellipse(bbox_right, fill=(255, 255, 255))
+
+    return base, mask
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 4:
+        print("Usage: compose.py <tile size> <radius> <output image JPG> <year>")
+        sys.exit(-1)
+
+    tile_size = int(sys.argv[1])
+    radius = int(sys.argv[2])
+    output_file = sys.argv[3]
+    year = int(sys.argv[4])
+    cache_dir = f"cache-{year}"
+
+    base_image, base_mask = create_base_images(radius, tile_size)
+    mos = CoverArtMosaic(cache_dir, base_image, tile_size, year)
+    mosaic, json_data = mos.create(dry_run=True)
+
+    with open(output_file + ".json", "w") as f:
+        f.write(json.dumps(json_data))
+
+    transparent = Image.new(size=mosaic.size, color=(0, 0, 0, 255), mode="RGBA")
+    mosaic = Image.composite(mosaic, transparent, base_mask)
+    mosaic.save(output_file, "PNG")
