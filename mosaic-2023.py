@@ -49,7 +49,12 @@ def add_logos(mosaic):
     lb_width = mosaic.size[0] // 6
     lb_height = lb_width * lb.size[1] // lb.size[0]
 
-    lb = lb.resize((lb_width, lb_height))
+#    lb = lb.resize((lb_width + 60, lb_height))
+#    lb = lb.rotate(4)
+
+    # 🤪🤪🤪🤪🤪🤪🤪🤪
+    lb = lb.resize((lb_width + 60, lb_height))
+    lb = lb.rotate(4)
    
     x = (mosaic.size[0] // 2) - (lb.size[0] // 2)
     y = lb.size[1]
@@ -83,7 +88,7 @@ if __name__ == '__main__':
 
     base_image, base_mask = create_base_images(radius, tile_size)
     mos = CoverArtMosaic(cache_dir, base_image, tile_size, year)
-    mosaic, json_data = mos.create(dry_run=False)
+    mosaic, json_data = mos.create(dry_run=True)
 
     with open(output_file + ".json", "w") as f:
         f.write(json.dumps(json_data))
